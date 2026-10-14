@@ -1,0 +1,110 @@
+# .github/workflows/ci.yml
+# ====================================================================
+# CONTINUOUS INTEGRATION (CI) pipeline — the "CI/CD in agile" bullet.
+#
+# WHAT CI MEANS (say this out loud in the interview):
+#   Every time code is pushed or a pull request is opened, an automated
+#   pipeline runs the same checks a developer would run locally — type
+#   check, lint, unit/component/integration tests — on a clean machine.
+#   If anything fails, the PR is blocked from merging. This is how a team
+#   keeps `main` always green and catches regressions BEFORE they ship.
+#
+# WHERE CD FITS:
+#   CI = run the checks. CD (Continuous Delivery/Deployment) = after CI
+#   passes, automatically build and release. For an Expo app, the CD half
+#   is an EAS build + submit (or an OTA update via `eas update`). We stub
+#   that as a separate, manual-approval job below so you can talk through
+#   the whole flow without needing EAS credentials wired up today.
+#
+# AGILE CONNECTION:
+#   In an agile team you merge small changes often. CI is what makes that
+#   safe: fast feedback on every change, trunk stays releasable, and
+#   you're never in a big scary "integration" phase at the end of a sprint.
+# ====================================================================
+
+name: CI
+
+# WHEN this pipeline runs.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ----------------------------------------------------------------
+  # JOB 1: quality gate — types + tests. This is the heart of CI.
+  # ----------------------------------------------------------------
+  test:
+    name: Type check & tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sports-feed
+    steps:
+      # Pull the repo onto the runner.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Install the exact Node version the project targets.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sports-feed/package-lock.json
+
+      # `npm ci` installs EXACTLY what's in package-lock.json — faster and
+      # more reproducible than `npm install` for CI.
+      - name: Install dependencies
+        run: npm ci
+
+      # TypeScript type check. Catches type errors the tests might not.
+      - name: Type check
+        run: npm run lint
+
+      # Run the Jest suite with coverage. --forceExit avoids the known
+      # React Native + React Query "lingering timer" worker warning.
+      - name: Run tests
+        run: npm run test:coverage
+
+      # Upload the coverage report as a build artifact you can download
+      # from the Actions run page.
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: sports-feed/coverage
+          if-no-files-found: ignore
+
+  # ----------------------------------------------------------------
+  # JOB 2 (illustrative): the CD half — build & release with EAS.
+  #
+  # `needs: test` means this only runs if the test job passed — that's
+  # the "gate". It only runs on pushes to main (not on PRs). It's
+  # commented out because it needs an EXPO_TOKEN secret and an EAS
+  # project; uncomment once those exist. This is here so you can SPEAK to
+  # the full CI/CD story in the interview.
+  # ----------------------------------------------------------------
+  # build-and-release:
+  #   name: EAS build & OTA update
+  #   needs: test
+  #   if: github.ref == 'refs/heads/main'
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: sports-feed
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: 22, cache: npm, cache-dependency-path: sports-feed/package-lock.json }
+  #     - run: npm ci
+  #     - uses: expo/expo-github-action@v8
+  #       with:
+  #         eas-version: latest
+  #         token: ${{ secrets.EXPO_TOKEN }}
+  #     # Ship a JS-only change instantly to users via OTA:
+  #     - run: eas update --branch production --message "${{ github.event.head_commit.message }}"
+  #     # Or cut a full native build when native code changed:
+  #     # - run: eas build --platform all --non-interactive --no-wait
