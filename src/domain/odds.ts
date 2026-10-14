@@ -54,7 +54,7 @@ export function payout(stake: number, odds: DecimalOdds): number {
   if (odds < 1) {
     throw new Error('Decimal odds must be >= 1');
   }
-  return round2(stake + odds);
+  return round2(stake * odds);
 }
 
 /**
