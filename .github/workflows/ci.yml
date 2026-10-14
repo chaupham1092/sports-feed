@@ -38,9 +38,6 @@ jobs:
   test:
     name: Type check & tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: sports-feed
     steps:
       # Pull the repo onto the runner.
       - name: Checkout
@@ -52,7 +49,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: sports-feed/package-lock.json
 
       # `npm ci` installs EXACTLY what's in package-lock.json — faster and
       # more reproducible than `npm install` for CI.
@@ -75,7 +71,7 @@ jobs:
         if: always()
         with:
           name: coverage
-          path: sports-feed/coverage
+          path: coverage
           if-no-files-found: ignore
 
   # ----------------------------------------------------------------
